@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import json
+import re
 
 from datetime import datetime
 
@@ -23,37 +24,27 @@ class NameFinder:
         if self.isDone(domain) or not domain:
             return
 
-        self.log.info(f'Finding {domain}')
-
-        self.google.api.proxies = self.internet.getRandomProxy()
-        googleResults = self.google.search(f'site:beta.companieshouse.gov.uk {domain}', 5, False)
-
-        companyHouseInformation = {}
-        companyHouseUrl = ''
-
-        for googleResult in googleResults:
-            if googleResult == 'no results':
-                break
-
-            # look for main company page only
-            afterPrefix = helpers.findBetween(googleResult, 'beta.companieshouse.gov.uk/company/', '')
-
-            if '/' in afterPrefix:
-                continue
-
-            companyHouseUrl = googleResult
-
-            companyHouseInformation = self.getCompanyHouseInformation(companyHouseUrl)
-            break
-
         result = {
             'domain': domain,
             'domain status': '',
             'companyName': 'unknown'
         }
 
-        if companyHouseInformation:
-            result = helpers.mergeDictionaries(companyHouseInformation, result)
+        self.log.info(f'Finding {domain}')
+
+        self.confidence = 0
+
+        websiteInformation = self.lookOnWebsite(domain)
+        companiesHouseInformation = self.lookOnCompaniesHouse(domain)
+
+        # does website title match the name in companies house?
+        similarity = self.compare.companyNamesMatch(get(companiesHouseInformation, 'companyName'), websiteInformation)
+
+        if similarity == 1:
+            self.compare.increaseConfidence(400, 400, f'The website title exactly matches the name in companies house.', f'website name exactly matches companies house')
+
+        if companiesHouseInformation:
+            result = helpers.mergeDictionaries(companiesHouseInformation, result)
             self.outputResult(result)
             return
         else:
@@ -73,11 +64,37 @@ class NameFinder:
 
         print(googleMapResults)
 
-    def getCompanyHouseInformation(self, companyHouseUrl):
+    def lookOnWebsite(self, domain):
+        result = {}
+
+        return result
+
+    def lookOnCompaniesHouse(self, domain):
+        result = {}
+
+        self.google.api.proxies = self.internet.getRandomProxy()
+        googleResults = self.google.search(f'site:beta.companieshouse.gov.uk {domain}', 5, False)
+
+        for googleResult in googleResults:
+            if googleResult == 'no results':
+                break
+
+            # look for main company page only
+            afterPrefix = helpers.findBetween(googleResult, 'beta.companieshouse.gov.uk/company/', '')
+
+            if '/' in afterPrefix:
+                continue
+
+            result = self.getCompaniesHouseInformation(googleResult)
+            break
+
+        return result
+    
+    def getCompaniesHouseInformation(self, companiesHouseUrl):
         result = {}
 
         api = Api()
-        html = api.getPlain(companyHouseUrl)
+        html = api.getPlain(companiesHouseUrl)
 
         if not html:
             return result
@@ -205,6 +222,93 @@ class NameFinder:
         externalApi = Api()
         self.credentials['google maps']['apiKey'] = externalApi.get(url, None, False)
 
+        self.compare = Compare(self.options)
         self.internet = Internet(self.options)
         self.google = Google(self.options)
         self.googleMaps = GoogleMaps(self.options, self.credentials, self.database)
+
+class Compare:
+    def companyNamesMatch(self, name1, name2):
+        name1 = self.getBasicCompanyName(name1)
+        name2 = self.getBasicCompanyName(name2)
+
+        if name1 == name2:
+            return 1
+
+        return 0
+
+    def increaseConfidence(self, number, maximumPossible, message, shortMessage):
+        self.maximumPossibleConfidence += maximumPossible
+        self.totalTests += 1
+
+        word = 'failed'
+
+        if number == 0:
+            self.log.debug(f'Confidence: {self.confidence} out of {self.maximumPossibleConfidence}. Failed: {message}')
+        else:
+            word = 'passed'
+            
+            self.testsPassed += 1
+
+            self.confidence += number
+
+            self.log.debug(f'Confidence: {self.confidence} out of {self.maximumPossibleConfidence}. Added {number}. Passed: {message}')
+
+        logging.info(f'Domain: {self.domain}. Tests passed: {self.testsPassed} of {self.totalTests}. Test {word}: {shortMessage}.')
+
+    def getFuzzyVersion(self, s):
+        result = s.lower()
+        result = result.strip()
+        return helpers.squeezeWhitespace(result)
+
+    def getBasicCompanyName(self, s):
+        # description or extraneous information usually comes after
+        s = helpers.findBetween(s, '|', '')
+        s = helpers.findBetween(s, ' - ', '')
+        s = helpers.findBetween(s, ',', '')
+        s = helpers.findBetween(s, '(', '')
+
+        s = s.replace('-', ' ')
+        s = s.replace('&', ' ')
+
+        s = helpers.lettersNumbersAndSpacesOnly(s)
+        s = self.getFuzzyVersion(s)
+
+        stringsToIgnore = [
+            'limited',
+            'ltd',
+            'llc',
+            'inc',
+            'pty',
+            'pl',
+            'co',
+            'corp'
+            'incorporated'
+        ]
+
+        for string in stringsToIgnore:
+            # word with space before and after
+            s = re.sub(f' {string} ', ' ', s)
+            # ends in the string
+            s = re.sub(f' {string}$', '', s)
+
+        locationsToRemove = self.options['ignoreInCompanyName'].split(',')
+
+        for string in locationsToRemove:
+            # word with space before and after
+            s = re.sub(f' {string}.*', '', s)
+            # ends in the string
+            s = re.sub(f' {string}$', '', s)
+
+        s = self.getFuzzyVersion(s)
+
+        return s
+
+    def __init__(self, options):
+        self.options = options
+        self.testsPassed = 0
+        self.totalTests = 0
+        self.confidence = 0
+        self.maximumPossibleConfidence = 0
+        self.domain = ''
+        self.log = logging.getLogger(get(self.options, 'loggerName'))

@@ -40,7 +40,8 @@ class Main:
             'proxyListUrl': helpers.getFile('program/resources/resource'),
             'defaultSearchUrl': '',
             'userAvoidPatterns': '',
-            'userAvoidDomains': ''
+            'userAvoidDomains': '',
+            'ignoreInCompanyName': ''
         }
 
         optionsFileName = helpers.getParameter('--optionsFile', False, 'user-data/options.ini')
