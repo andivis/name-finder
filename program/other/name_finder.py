@@ -46,6 +46,7 @@ class NameFinder:
         if companyHouseInformation:
             result = companyHouseInformation
             result['domain'] = domain
+            result['domain status'] = ''
 
             self.outputResult(companyHouseInformation)
         
@@ -124,31 +125,47 @@ class NameFinder:
         return results
 
     def outputResult(self, newItem):
+        self.toDatabase(newItem)
+
         outputFile = self.options['outputFile']
 
         helpers.makeDirectory(os.path.dirname(outputFile))
 
-        fields = newItem.keys()
+        fields = ['domain', 'companyName', 'companyNumber', 'registered office address', 'company status', 'domain status']
 
         if not os.path.exists(outputFile):
-            helpers.toFile(','.join(fields), outputFile)
+            printableFields = []
+            
+            for field in fields:
+                printableName = helpers.addBeforeCapitalLetters(field).lower()
+                
+                printableFields.append(printableName)
+            
+            helpers.toFile(','.join(printableFields), outputFile)
 
-        helpers.appendCsvFile(newItem, outputFile)
+        values = []
 
+        for field in fields:
+            values.append(get(newItem, field))
+
+        # this quote fields that contain commas
+        helpers.appendCsvFile(values, outputFile)
+
+    def toDatabase(self, newItem):
         tables = helpers.getJsonFile(self.tablesFile)
 
-        toStore = {
-            'gmDate': str(datetime.utcnow()),
-            'json': json.dumps(newItem)
-        }
+        toStore = {}
 
-        for column in helpers.getNested(tables, ['result', 'column']):
+        for column in helpers.getNested(tables, ['result', 'columns']):
             toStore[column] = get(newItem, column)
 
-        self.database.insert('result', toStore)
+        toStore['gmDate'] = str(datetime.utcnow())
+        toStore['json'] = json.dumps(newItem)
 
+        self.database.insert('result', toStore)
+    
     def isDone(self, domain):
-        if self.database.getFirst('result', 'url', f"domain = '{domain}'"):
+        if self.database.getFirst('result', 'domain', f"domain = '{domain}'"):
             self.log.info(f'Skipping. Already done {domain}.')
             return True
 
