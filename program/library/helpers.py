@@ -272,7 +272,7 @@ def stringToFloatingPoint(s):
     return result
 
 
-def getCsvFile(fileName, asDictionary=True):
+def getCsvFile(fileName, asDictionary=True, delimiter=','):
     result = []
 
     import csv
@@ -283,9 +283,9 @@ def getCsvFile(fileName, asDictionary=True):
         try:
             with open(fileName, encoding=encoding) as inputFile:
                 if asDictionary:
-                    csvReader = csv.DictReader(inputFile, delimiter=',')
+                    csvReader = csv.DictReader(inputFile, delimiter=delimiter)
                 else:
-                    csvReader = csv.reader(inputFile, delimiter=',')
+                    csvReader = csv.reader(inputFile, delimiter=delimiter)
                     # skip the headers
                     next(csvReader, None)
 

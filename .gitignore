@@ -2,6 +2,9 @@
 /user-data/logs
 /user-data/output
 
+*.sqlite
+*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[co]
