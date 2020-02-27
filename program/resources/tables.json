@@ -1,0 +1,13 @@
+{
+    "result": {
+        "columns": {
+            "domain": "text",
+            "companyName": "text",
+            "gmDate": "text",
+            "json": "text"
+        },
+        "primaryKeys": [
+            "domain"
+        ]
+    }
+}

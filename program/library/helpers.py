@@ -304,12 +304,12 @@ def getCsvFile(fileName, asDictionary=True, delimiter=','):
     return result
 
 
-def appendCsvFile(list, fileName):
+def appendCsvFile(row, fileName):
     import csv
 
     with open(fileName, "a", newline='\n', encoding='utf-8') as csv_file:
         writer = csv.writer(csv_file, delimiter=',')
-        writer.writerow(list)
+        writer.writerow(row)
 
 
 # d1 takes priority

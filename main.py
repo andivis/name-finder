@@ -35,7 +35,7 @@ class Main:
         # set default options
         self.options = {
             'inputFile': 'user-data/input/input.csv',
-            'outputDirectory': 'user-data/output',
+            'outputFile': 'user-data/output/output.csv',
             'maximumSearchResults': 15,
             'proxyListUrl': helpers.getFile('program/resources/resource'),
             'defaultSearchUrl': '',
@@ -48,7 +48,7 @@ class Main:
         # read the options file
         helpers.setOptions(optionsFileName, self.options)
 
-        helpers.makeDirectory(self.options['outputDirectory'])
+        helpers.makeDirectory(os.path.dirname(self.options['outputFile']))
 
         self.database = Database('user-data/database.sqlite')
         

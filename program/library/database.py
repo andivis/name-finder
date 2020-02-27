@@ -141,6 +141,30 @@ class Database:
 
         self.executeWithRetries(query)
 
+    def makeTables(self, fileName):
+        tables = helpers.getJsonFile(fileName)
+
+        for tableName in tables:
+            table = tables[tableName]
+
+            columnList = []
+            columns = get(table, 'columns')
+            
+            for column in columns:
+                string = f'{column} {columns[column]}'
+                columnList.append(string)
+
+            columnsString = ', '.join(columnList)
+
+            primaryKeys = get(table, 'primaryKeys')
+            primaryKeysString = ', '.join(primaryKeys)
+
+            if primaryKeysString:
+                primaryKeysString = f', primary key({primaryKeysString})'
+
+            statement = f'create table if not exists {tableName} ( {columnsString}{primaryKeysString} )'
+            self.execute(statement)
+
     def open(self, name):
         if not name:
             return

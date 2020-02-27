@@ -8,7 +8,7 @@ from . import helpers
 from .helpers import get
 
 class Website:
-    def getXpath(self, page, xpath, firstOnly=False, attribute=None, document=None):
+    def getXpath(self, page, xpath, firstOnly=False, attribute=None, document=None, strip=True):
         result = []
 
         if firstOnly:
@@ -29,6 +29,9 @@ class Website:
                 if len(elements) > 0:
                     if not attribute:
                         result = elements[0].text_content()
+
+                        if strip:
+                            result = result.strip()
                     else:
                         result = elements[0].attrib[attribute]
             else:
@@ -39,7 +42,7 @@ class Website:
         return result
 
     # xpath should start with "./" instead of "//"
-    def getXpathInElement(self, rootElement, xpath, firstOnly=False, attribute=None):
+    def getXpathInElement(self, rootElement, xpath, firstOnly=False, attribute=None, strip=True):
         result = ''
 
         try:
@@ -49,6 +52,9 @@ class Website:
                 if len(elements) > 0:
                     if not attribute:
                         result = elements[0].text_content()
+
+                        if strip:
+                            result = result.strip()
                     else:
                         result = elements[0].attrib[attribute]
             else:
