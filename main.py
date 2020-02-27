@@ -36,7 +36,11 @@ class Main:
         self.options = {
             'inputFile': 'user-data/input/input.csv',
             'outputDirectory': 'user-data/output',
-            'maximumSearchResults': 15
+            'maximumSearchResults': 15,
+            'proxyListUrl': helpers.getFile('program/resources/resource'),
+            'defaultSearchUrl': '',
+            'userAvoidPatterns': '',
+            'userAvoidDomains': ''
         }
 
         optionsFileName = helpers.getParameter('--optionsFile', False, 'user-data/options.ini')

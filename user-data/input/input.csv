@@ -1,4 +1,5 @@
 domain	country	A	NS	CNAME	MX	TXT
+ibroxsuiteshotel.uk	GB	85.233.160.22	ns2.phase8.net,ns1.phase8.net,ns0.phase8.net		{'exchange': 'fwd1.hosts.co.uk', 'priority': 30},{'exchange': 'fwd2.hosts.co.uk', 'priority': 30},{'exchange': 'fwd0.hosts.co.uk', 'priority': 30}	
 heaven-scent.co.uk	DE	217.160.0.219	ns1051.ui-dns.org,ns1108.ui-dns.de,ns1122.ui-dns.com,ns1089.ui-dns.biz		{'exchange': 'mx00.1and1.co.uk', 'priority': 10},{'exchange': 'mx01.1and1.co.uk', 'priority': 10}	
 heaven-scent-cornwal.co.uk	US	205.147.88.143	ns2.systemdns.com,ns1.systemdns.com,ns3.systemdns.com		{'exchange': 'mx.heaven-scent-cornwal.co.uk.cust.a.hostedemail.com', 'priority': 0}	
 heaven-scent-cornwall.co.uk	US	208.43.88.227	ns1.systemdns.com,ns2.systemdns.com,ns3.systemdns.com		{'exchange': 'mx.heaven-scent-cornwall.co.uk.cust.a.hostedemail.com', 'priority': 0}	

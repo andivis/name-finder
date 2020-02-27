@@ -160,8 +160,8 @@ class Google:
         self.captcha = False
         self.captchaOnLastSearch = False
         self.avoidDomains = []
-        self.userAvoidPatterns = []
-        self.userAvoidDomains = []
+        self.userAvoidPatterns = get(options, 'userAvoidPatterns')
+        self.userAvoidDomains = get(options, 'userAvoidDomains')
         self.log = logging.getLogger(get(options, 'loggerName'))
 
         self.api.setHeadersFromHarFile('program/resources/headers.txt', '')
@@ -175,3 +175,4 @@ class Google:
             'webcache.googleusercontent.com',
             'google.'
         ]
+        

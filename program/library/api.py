@@ -281,6 +281,7 @@ class Api:
 
             for header in headersList:
                 name = header.get('name', '')
+                value = header.get('value', '')
 
                 # ignore pseudo-headers
                 if name.startswith(':'):
@@ -289,7 +290,11 @@ class Api:
                 if name.lower() == 'content-length' or name.lower() == 'host':
                     continue
 
-                newHeader = (name, header.get('value', ''))
+                # otherwise response will stay compressed and unreadable
+                if name.lower() == 'accept-encoding' and not self.hasBrotli:
+                    value = value.replace(', br', '')
+
+                newHeader = (name, value)
 
                 headers.append(newHeader)
 
@@ -351,8 +356,10 @@ class Api:
             ])
 
         self.proxies = None
+        self.hasBrotli = True
 
         try:
             import brotli
         except ImportError as e:
-            helpers.handleException(e, 'You need to run "pip3 install brotlipy" or "pip install brotlipy" first, then restart this script')
+            self.hasBrotli = False
+            helpers.handleException(e, 'You should run "pip3 install brotli" or "pip install brotli" first, then restart this script')
