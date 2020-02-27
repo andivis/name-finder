@@ -32,6 +32,9 @@ class NameFinder:
         companyHouseUrl = ''
 
         for googleResult in googleResults:
+            if googleResult == 'no results':
+                break
+
             # look for main company page only
             afterPrefix = helpers.findBetween(googleResult, 'beta.companieshouse.gov.uk/company/', '')
 
@@ -43,12 +46,19 @@ class NameFinder:
             companyHouseInformation = self.getCompanyHouseInformation(companyHouseUrl)
             break
 
-        if companyHouseInformation:
-            result = companyHouseInformation
-            result['domain'] = domain
-            result['domain status'] = ''
+        result = {
+            'domain': domain,
+            'domain status': '',
+            'companyName': 'unknown'
+        }
 
-            self.outputResult(companyHouseInformation)
+        if companyHouseInformation:
+            result = helpers.mergeDictionaries(companyHouseInformation, result)
+            self.outputResult(result)
+            return
+        else:
+            self.outputResult(result)
+            return
         
         googleResults = self.google.search(f'site:{domain} contact', 3, False)
         
@@ -125,7 +135,13 @@ class NameFinder:
         return results
 
     def outputResult(self, newItem):
-        self.toDatabase(newItem)
+        if not get(newItem, 'domain'):
+            return
+
+        if get(newItem, 'companyName') != 'unknown':
+            self.log.info(f'Result: {get(newItem, "companyName")} {get(newItem, "domain")}')
+        else:
+            self.log.info(f'No result found for {get(newItem, "domain")}')
 
         outputFile = self.options['outputFile']
 
@@ -150,6 +166,8 @@ class NameFinder:
 
         # this quote fields that contain commas
         helpers.appendCsvFile(values, outputFile)
+
+        self.toDatabase(newItem)
 
     def toDatabase(self, newItem):
         tables = helpers.getJsonFile(self.tablesFile)

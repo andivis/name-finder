@@ -29,7 +29,7 @@ class GoogleMaps:
         names = []
 
         for item in places:
-            if SiteHelpers.inDatabase(searchItem, item.get('place_id', ''), self.database):
+            if self.shouldOutputResults and SiteHelpers.inDatabase(searchItem, item.get('place_id', ''), self.database):
                 continue
 
             details = self.getPlaceDetails(item)

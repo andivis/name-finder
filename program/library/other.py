@@ -1,3 +1,4 @@
+import sys
 import os
 import logging
 import json
@@ -617,7 +618,7 @@ class Internet:
         currentIp = currentIp.get('ip', '')
 
         # check if it's already allowed
-        if not currentIp in allowedIps:
+        if not currentIp in allowedIps and not '--debug' in sys.argv:
             toKeep = 3
             newAllowedIps = allowedIps[0:toKeep]
             newAllowedIps.append(currentIp)
