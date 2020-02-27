@@ -19,7 +19,12 @@ class GoogleMaps:
         keyword += ' ' + self.locationHelper.getLocationString(searchItem)
         keyword = keyword.strip()
 
-        places = self.getPages(searchItem, f'/maps/api/place/textsearch/json?query={keyword}&key={self.apiKey}')
+        regionPart = ''
+
+        if get(searchItem, 'region'):
+            regionPart = '&region=' + get(searchItem, 'region')
+
+        places = self.getPages(searchItem, f'/maps/api/place/textsearch/json?query={keyword}{regionPart}&key={self.apiKey}')
 
         names = []
 
