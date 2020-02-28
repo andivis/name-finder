@@ -16,7 +16,6 @@ from . import helpers
 from .helpers import get
 from .api import Api
 from .website import Website
-from .google import Google
 from .database import Database
 
 class ContactUploader:

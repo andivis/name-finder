@@ -10,14 +10,18 @@ from . import helpers
 from .helpers import get
 from .api import Api
 from .website import Website
+from .other import Internet
 
 class Google:
-    def search(self, query, numberOfResults, acceptAll=True, moreParameters={}):
+    def search(self, query, numberOfResults=10, acceptAll=True, moreParameters={}):
         results = []
 
-        self.captchaOnLastSearch = False
+        self.captcha = False
         
         self.api.urlPrefix = self.defaultSearchUrl
+
+        if self.internet:
+            self.api.proxies = self.internet.getRandomProxy()
 
         parameters = {
             'q': query,
@@ -60,7 +64,6 @@ class Google:
         if 'detected unusual traffic from your computer network.' in page:
             self.log.error(f'There is a captcha')
             self.captcha = True
-            self.captchaOnLastSearch = False
             return result
 
         if 'google.' in page and 'did not match any ' in page:
@@ -158,11 +161,11 @@ class Google:
         self.api = Api('', options)
         self.website = Website(options)
         self.captcha = False
-        self.captchaOnLastSearch = False
         self.avoidDomains = []
         self.userAvoidPatterns = get(options, 'userAvoidPatterns')
         self.userAvoidDomains = get(options, 'userAvoidDomains')
         self.log = logging.getLogger(get(options, 'loggerName'))
+        self.internet = None
 
         self.api.setHeadersFromHarFile('program/resources/headers.txt', '')
 

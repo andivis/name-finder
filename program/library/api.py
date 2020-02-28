@@ -56,7 +56,10 @@ class Api:
                 result = response.text
         
         except Exception as e:
-            helpers.handleException(e)
+            if 'Max retries exceeded with url' in str(e):
+                helpers.handleException(e, None, self.log.name, True)
+            else:
+                helpers.handleException(e, None, self.log.name)
         
         return result
 

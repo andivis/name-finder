@@ -30,19 +30,19 @@ class NameFinder:
             'companyName': 'unknown'
         }
 
-        self.log.info(f'Finding {domain}')
-
         self.domain = domain
+        self.domainStatus = 'unknown'
         self.compare.reset()
         self.compare.domain = domain
 
         companiesHouseInformation = self.lookOnCompaniesHouse(domain)
 
+        if self.google.captcha:
+            return
+
         # does "a b c" match "abc.com"?
         similarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'))
-
-        if similarity == 1:
-            self.compare.increaseConfidence(400, 400, f'The domain name exactly matches the name in companies house.', f'domain name exactly matches companies house')
+        self.compare.increaseConfidence(similarity * 400, 400, f'The domain name matches the name in companies house.', f'domain name matches companies house')
 
         # can stop early to speed things up
         if self.outputIfDone(newItem, companiesHouseInformation):
@@ -51,18 +51,32 @@ class NameFinder:
         # does website title match the name in companies house?
         websiteInformation = self.lookOnWebsite(domain)
 
-        similarity = self.compare.companyNamesMatch(domain, get(companiesHouseInformation, 'companyName'), get(websiteInformation, 'companyName'))
+        if self.google.captcha:
+            return
 
-        if similarity == 1:
-            self.compare.increaseConfidence(400, 400, f'The website title exactly matches the name in companies house.', f'website name exactly matches companies house')
+        if self.domainStatus != 'active':
+            self.outputUnknown(newItem, companiesHouseInformation)
+            return
+
+        maximumSimilarity = -1
+
+        for name in get(websiteInformation, 'possibleNames'):
+            similarity = self.compare.companyNamesMatch(get(companiesHouseInformation, 'companyName'), name)
+
+            if similarity > maximumSimilarity:
+                maximumSimilarity = similarity
+                websiteInformation['companyName'] = name
+
+        self.compare.increaseConfidence(maximumSimilarity * 400, 400, f'The website title matches the name in companies house.', f'website title matches companies house')
 
         if self.outputIfDone(newItem, companiesHouseInformation):
             return
 
+        self.outputUnknown(newItem, companiesHouseInformation)
+        return      
+
         googleResults = self.google.search(f'site:{domain} contact', 3, False)
         
-        companies = self.getCompaniesHouseResults('Heaven Scent Incense')
-
         googleMapSearchItem = {
             'keyword': '01225 868788',
             'region': 'uk'
@@ -71,6 +85,16 @@ class NameFinder:
         googleMapResults = self.googleMaps.search(googleMapSearchItem)
 
         print(googleMapResults)
+
+    def outputUnknown(self, newItem, companiesHouseInformation):
+        toOutput = helpers.mergeDictionaries(companiesHouseInformation, newItem)
+        
+        toOutput['domainStatus'] = self.domainStatus
+        
+        toOutput['confidence'] = self.compare.confidence / self.compare.maximumPossibleConfidence
+        toOutput['confidence'] = int(round(toOutput['confidence'] * 100))
+        
+        self.outputResult(toOutput)
 
     def outputIfDone(self, newItem, companiesHouseInformation):
         result = False
@@ -81,6 +105,11 @@ class NameFinder:
         self.log.info(f'Done {self.domain}. Reached confidence of {self.options["minimumConfidence"]}.')
 
         toOutput = helpers.mergeDictionaries(companiesHouseInformation, newItem)
+
+        toOutput['domainStatus'] = self.domainStatus
+        
+        toOutput['confidence'] = self.compare.confidence / self.compare.maximumPossibleConfidence
+        toOutput['confidence'] = int(round(toOutput['confidence'] * 100))        
         
         self.outputResult(toOutput)
         
@@ -89,12 +118,64 @@ class NameFinder:
     def lookOnWebsite(self, domain):
         result = {}
 
+        url = domain
+
+        if not domain.startswith('https://') and not domain.startswith('http://'):
+            url = 'http://' + url
+        
+        response = self.api.get(url, None, False, True)
+        
+        toAvoid = [
+            'page not found',
+            'cannot be found',
+            'can\'t be found',
+            'does not exist',
+            'not found'
+        ]
+
+        if not response or not response.text:
+            self.domainStatus = 'offline'
+        elif response.status_code == 404:
+            self.domainStatus = '404 error'
+        elif helpers.substringIsInList(toAvoid, response.text):
+            self.log.debug(f'{domain} contains string to avoid')
+            self.domainStatus = 'parked'
+        elif not self.hasResultsOnGoogle(domain):
+            self.log.debug(f'{domain} only has 1 or 0 results on Google')
+            self.domainStatus = 'parked'            
+        else:
+            self.domainStatus = 'active'
+
+            document = lh.fromstring(response.text)
+            title = self.website.getXpath('', "//title", True, None, document)
+
+            # name can be before or after splitter
+            # before splitter
+            name1 = helpers.findBetween(title, '', ' - ')
+            name1 = helpers.findBetween(name1, '', '|')
+            name1 = name1.strip()
+
+            if not get(result, 'possibleNames'):
+                result['possibleNames'] = []
+
+            result['possibleNames'].append(name1)
+
+            # after splitter
+            name2 = helpers.findBetween(title, ' - ', '')
+            name2 = helpers.findBetween(name2, '|', '')
+            name2 = name2.strip()
+
+            result['possibleNames'].append(name2)
+
+            self.log.info(f'Website title: {title}')
+
+        self.log.info(f'{domain} status: {self.domainStatus}')
+
         return result
 
     def lookOnCompaniesHouse(self, domain):
         result = {}
 
-        self.google.api.proxies = self.internet.getRandomProxy()
         googleResults = self.google.search(f'site:beta.companieshouse.gov.uk {domain}', 5, False)
 
         for googleResult in googleResults:
@@ -102,14 +183,22 @@ class NameFinder:
                 break
 
             # look for main company page only
-            afterPrefix = helpers.findBetween(googleResult, 'beta.companieshouse.gov.uk/company/', '')
+            companyId = helpers.findBetween(googleResult, 'beta.companieshouse.gov.uk/company/', '/', True)
 
-            if '/' in afterPrefix:
+            if not companyId:
+                companyId = helpers.findBetween(googleResult, 'beta.companieshouse.gov.uk/company/', '', True)
+
+            if not companyId:
                 continue
 
-            result = self.getCompaniesHouseInformation(googleResult)
+            url = 'https://beta.companieshouse.gov.uk/company/' + companyId
+
+            result = self.getCompaniesHouseInformation(url)
+
             break
 
+        self.log.info(f'Name from Companies House: {get(result, "companyName")}')
+        
         return result
     
     def getCompaniesHouseInformation(self, companiesHouseUrl):
@@ -148,7 +237,7 @@ class NameFinder:
         results = []
         
         api = Api()
-        html = api.getPlain('https://beta.companieshouse.gov.uk/search/companies?q=' + query)
+        html = api.get('https://beta.companieshouse.gov.uk/search/companies?q=' + query, None, False)
 
         if not html:
             return results
@@ -158,18 +247,9 @@ class NameFinder:
         searchResults = website.getXpath(html, "//li[@class = 'type-company']")
 
         for searchResult in searchResults:
-            name = website.getXpathInElement(searchResult, ".//a[contains(@href, '/company/')]", True)
-            name = name.strip()
-            
-            address = website.getXpathInElement(searchResult, ".//p[not(@class)]", True)
-            address = address.strip()
+            url = website.getXpathInElement(searchResult, ".//a[contains(@href, '/company/')]", True, 'href')
 
-            result = {
-                'name': name,
-                'address': address
-            }
-
-            results.append(result)
+            results.append(url)
 
         return results
 
@@ -186,7 +266,7 @@ class NameFinder:
 
         helpers.makeDirectory(os.path.dirname(outputFile))
 
-        fields = ['domain', 'companyName', 'companyNumber', 'registered office address', 'company status', 'domain status']
+        fields = ['domain', 'companyName', 'confidence', 'companyNumber', 'registered office address', 'company status', 'domainStatus']
 
         if not os.path.exists(outputFile):
             printableFields = []
@@ -220,6 +300,11 @@ class NameFinder:
         toStore['json'] = json.dumps(newItem)
 
         self.database.insert('result', toStore)
+
+    def hasResultsOnGoogle(self, domain):
+        results = self.google.search(f'site:{domain}')
+
+        return len(results) > 1
     
     def isDone(self, domain):
         if self.database.getFirst('result', 'domain', f"domain = '{domain}'"):
@@ -246,7 +331,11 @@ class NameFinder:
 
         self.compare = Compare(self.options)
         self.internet = Internet(self.options)
+        self.api = Api('', self.options)
+        self.api.timeout = 5
+        self.website = Website(self.options)
         self.google = Google(self.options)
+        self.google.internet = self.internet
         self.googleMaps = GoogleMaps(self.options, self.credentials, self.database)
 
 class Compare:
@@ -256,21 +345,42 @@ class Compare:
         basicDomain = helpers.getBasicDomainName(domain)
 
         # does "a b c" match "abc.com"?
-        if basicDomain == helpers.lettersAndNumbersOnly(name):
+        if helpers.lettersAndNumbersOnly(basicDomain) == helpers.lettersAndNumbersOnly(name):
             return 1
+        else:
+            # does "a b c" match "ab.com"
+            return self.percentageOfMaximumRun(name, basicDomain)
 
         return 0
     
-    def companyNamesMatch(self, domain, name1, name2):
+    def companyNamesMatch(self, name1, name2):
         name1 = self.getBasicCompanyName(name1)
         name2 = self.getBasicCompanyName(name2)
 
+        if not name1 or not name2:
+            return 0
+
         if name1 == name2:
             return 1
+        else:
+            return self.percentageOfMaximumRun(name1, name2)
 
         return 0
 
+    def percentageOfMaximumRun(self, name1, name2):
+        words = self.getWordsInName(name1)
+        maximumRun = self.wordsInARowTheSame(words, name2, ' ', False)
+        
+        if len(words):
+            result = maximumRun / len(words)
+        else:
+            result = 0
+            
+        return result
+
     def increaseConfidence(self, number, maximumPossible, message, shortMessage):
+        number = int(number)
+
         self.maximumPossibleConfidence += maximumPossible
         self.totalTests += 1
 
@@ -287,7 +397,9 @@ class Compare:
 
             self.log.debug(f'Confidence: {self.confidence} out of {self.maximumPossibleConfidence}. Added {number}. Passed: {message}')
 
-        logging.info(f'Domain: {self.domain}. Tests passed: {self.testsPassed} of {self.totalTests}. Test {word}: {shortMessage}.')
+        self.log.debug(f'Adding {number} out of {maximumPossible}')
+        
+        self.log.info(f'Domain: {self.domain}. Adding: {number}. Tests passed: {self.testsPassed} of {self.totalTests}. Test {word}: {shortMessage}.')
 
     def getFuzzyVersion(self, s):
         result = s.lower()
@@ -296,10 +408,10 @@ class Compare:
 
     def getBasicCompanyName(self, s):
         # description or extraneous information usually comes after
-        s = helpers.findBetween(s, '|', '')
-        s = helpers.findBetween(s, ' - ', '')
-        s = helpers.findBetween(s, ',', '')
-        s = helpers.findBetween(s, '(', '')
+        s = helpers.findBetween(s, '', '|')
+        s = helpers.findBetween(s, '', ' - ')
+        s = helpers.findBetween(s, '', ',')
+        s = helpers.findBetween(s, '', '(')
 
         s = s.replace('-', ' ')
         s = s.replace('&', ' ')
@@ -336,6 +448,58 @@ class Compare:
         s = self.getFuzzyVersion(s)
 
         return s
+
+    def wordsInARowTheSame(self, words, toCompare, joinString, mustStartWith):
+        result = 0
+
+        toCompare = toCompare.lower()
+
+        # go from left to right
+        # try longest run first, then try smaller ones
+        for i in range(len(words), -1, -1):
+            line = joinString.join(words[0:i])
+
+            if mustStartWith:
+                if toCompare.startswith(line) and i > result:
+                    result = i
+                    break            
+            else:
+                if line in toCompare and i > result:
+                    result = i
+                    break
+
+        if not result:
+            # go from right to left
+            for i in range(len(words), -1, -1):
+                line = joinString.join(words[-i:len(words)])
+
+                if mustStartWith:
+                    if toCompare.startswith(line) and i > result:
+                        result = i
+                        break            
+                else:
+                    if line in toCompare and i > result:
+                        result = i
+                        break
+
+        return result
+
+    def getWordsInName(self, name):
+        wordsToIgnore = [
+            'limited',
+            'ltd',
+            'llc',
+            'inc',
+            'incorporated'
+        ]
+
+        words = re.sub(r'[^\w]', ' ',  name).split()
+
+        for word in wordsToIgnore:
+            if word in words:
+                words.remove(word)
+
+        return words
 
     def reset(self):
         self.testsPassed = 0

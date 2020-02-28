@@ -3,6 +3,7 @@
         "columns": {
             "domain": "text",
             "companyName": "text",
+            "confidence": "integer",
             "gmDate": "text",
             "json": "text"
         },

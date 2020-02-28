@@ -18,12 +18,15 @@ def get(item, key):
     return result
 
 
-def handleException(exception, prefix='Something went wrong'):
-    logging.error(f'{prefix}: {exception}')
+def handleException(exception, prefix='Something went wrong', loggerName=None, useDebugOnly=False):
+    if useDebugOnly:
+        logging.getLogger(loggerName).debug(f'{prefix}: {exception}')
+    else:
+        logging.getLogger(loggerName).error(f'{prefix}: {exception}')
 
     s = traceback.format_exc()
-    logging.error('handleException')
-    logging.error(s)
+    logging.getLogger(loggerName).debug('handleException')
+    logging.getLogger(loggerName).debug(s)
 
 
 def getFile(fileName, encoding=None):
