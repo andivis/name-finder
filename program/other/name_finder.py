@@ -40,9 +40,16 @@ class NameFinder:
         if self.google.captcha:
             return
 
+        if not companiesHouseInformation:
+            self.outputUnknown(newItem, companiesHouseInformation)
+            return
+
         # does "a b c" match "abc.com"?
-        similarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'))
-        self.compare.increaseConfidence(similarity * 400, 400, f'The domain name matches the name in companies house.', f'domain name matches companies house')
+        similarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'), 'by words')
+        self.compare.increaseConfidence(similarity * 400, 400, f'The domain name matches the words in companies house name.', f'domain name matches words in companies house name')
+
+        noSpacesSimilarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'), 'by no spaces')
+        self.compare.increaseConfidence(noSpacesSimilarity * 400, 400, f'The domain name matches the name in companies house.', f'domain name matches companies house')
 
         # can stop early to speed things up
         if self.outputIfDone(newItem, companiesHouseInformation):
@@ -52,39 +59,34 @@ class NameFinder:
         websiteInformation = self.lookOnWebsite(domain)
 
         if self.google.captcha:
+            self.captcha = True
             return
 
         if self.domainStatus != 'active':
             self.outputUnknown(newItem, companiesHouseInformation)
             return
 
-        maximumSimilarity = -1
+        modes = [
+            'by words',
+            'by no spaces'
+        ]
 
-        for name in get(websiteInformation, 'possibleNames'):
-            similarity = self.compare.companyNamesMatch(get(companiesHouseInformation, 'companyName'), name)
+        for mode in modes:
+            maximumSimilarity = -1
 
-            if similarity > maximumSimilarity:
-                maximumSimilarity = similarity
-                websiteInformation['companyName'] = name
+            for name in get(websiteInformation, 'possibleNames'):
+                similarity = self.compare.companyNamesMatch(get(companiesHouseInformation, 'companyName'), name, mode)
 
-        self.compare.increaseConfidence(maximumSimilarity * 400, 400, f'The website title matches the name in companies house.', f'website title matches companies house')
+                if similarity > maximumSimilarity:
+                    maximumSimilarity = similarity
+                    websiteInformation['companyName'] = name
+
+            self.compare.increaseConfidence(maximumSimilarity * 400, 400, f'The website title matches the name in companies house.', f'website title matches companies house')
 
         if self.outputIfDone(newItem, companiesHouseInformation):
             return
 
         self.outputUnknown(newItem, companiesHouseInformation)
-        return      
-
-        googleResults = self.google.search(f'site:{domain} contact', 3, False)
-        
-        googleMapSearchItem = {
-            'keyword': '01225 868788',
-            'region': 'uk'
-        }
-
-        googleMapResults = self.googleMaps.search(googleMapSearchItem)
-
-        print(googleMapResults)
 
     def outputUnknown(self, newItem, companiesHouseInformation):
         toOutput = helpers.mergeDictionaries(companiesHouseInformation, newItem)
@@ -317,7 +319,8 @@ class NameFinder:
         self.options = options
         self.log = logging.getLogger(get(self.options, 'loggerName'))
         self.database = database
-
+        self.captcha = False
+        
         self.tablesFile = 'program/resources/tables.json'
         self.database.makeTables(self.tablesFile)
 
@@ -339,7 +342,7 @@ class NameFinder:
         self.googleMaps = GoogleMaps(self.options, self.credentials, self.database)
 
 class Compare:
-    def companyNameMatchesDomain(self, domain, name):
+    def companyNameMatchesDomain(self, domain, name, mode):
         name = self.getBasicCompanyName(name)
 
         basicDomain = helpers.getBasicDomainName(domain)
@@ -347,9 +350,12 @@ class Compare:
         # does "a b c" match "abc.com"?
         if helpers.lettersAndNumbersOnly(basicDomain) == helpers.lettersAndNumbersOnly(name):
             return 1
-        else:
+        elif mode == 'by words':
             # does "a b c" match "ab.com"
             return self.percentageOfMaximumRun(name, basicDomain)
+        elif mode == 'by no spaces':
+            # does "b c d" match "abc.com"
+            return self.percentageSameWithoutSpaces(name, basicDomain)
 
         return 0
     
@@ -378,6 +384,19 @@ class Compare:
             
         return result
 
+    def percentageSameWithoutSpaces(self, name1, name2):
+        name1 = helpers.lettersAndNumbersOnly(name1)
+        name2 = helpers.lettersAndNumbersOnly(name2)
+        
+        maximumRun = self.charactersInARowTheSame(name1, name2)
+        
+        if len(name2):
+            result = maximumRun / len(name2)
+        else:
+            result = 0
+            
+        return result
+
     def increaseConfidence(self, number, maximumPossible, message, shortMessage):
         number = int(number)
 
@@ -399,7 +418,7 @@ class Compare:
 
         self.log.debug(f'Adding {number} out of {maximumPossible}')
         
-        self.log.info(f'Domain: {self.domain}. Adding: {number}. Tests passed: {self.testsPassed} of {self.totalTests}. Test {word}: {shortMessage}.')
+        self.log.info(f'Domain: {self.domain}. Adding: {number} of {maximumPossible}. Tests passed: {self.testsPassed} of {self.totalTests}. Test {word}: {shortMessage}.')
 
     def getFuzzyVersion(self, s):
         result = s.lower()
@@ -481,6 +500,22 @@ class Compare:
                     if line in toCompare and i > result:
                         result = i
                         break
+
+        return result
+
+    def charactersInARowTheSame(self, string1, string2):
+        result = 0
+
+        string1 = string1.lower()
+        string2 = string2.lower()
+
+        # try longest run first, then try smaller ones
+        for i in range(len(string2), -1, -1):
+            run = ''.join(string1[0:i])
+
+            if run in string2:
+                result = i
+                break
 
         return result
 

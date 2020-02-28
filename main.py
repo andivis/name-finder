@@ -15,14 +15,22 @@ class Main:
 
         inputRows = helpers.getCsvFile(self.options['inputFile'], True, '\t')
 
-        for i, inputRow in enumerate(inputRows):
-            try:
-                domain = get(inputRow, 'domain')
-                logging.info(f'Line {i + 1} of {len(inputRows)}: {domain}')
+        while True:
+            self.nameFinder.captcha = False
+            
+            for i, inputRow in enumerate(inputRows):
+                try:
+                    domain = get(inputRow, 'domain')
+                    logging.info(f'Line {i + 1} of {len(inputRows)}: {domain}')
 
-                self.nameFinder.findName(domain)
-            except Exception as e:
-                helpers.handleException(e)
+                    self.nameFinder.findName(domain)
+                except Exception as e:
+                    helpers.handleException(e)
+
+            if not self.nameFinder.captcha:
+                break
+            else:
+                logging.info('A captcha was found. Running again to finish any remaining lines.')
         
         self.cleanUp()
 
