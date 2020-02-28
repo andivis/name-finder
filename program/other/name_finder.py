@@ -24,7 +24,7 @@ class NameFinder:
         if self.isDone(domain) or not domain:
             return
 
-        result = {
+        newItem = {
             'domain': domain,
             'domain status': '',
             'companyName': 'unknown'
@@ -32,25 +32,33 @@ class NameFinder:
 
         self.log.info(f'Finding {domain}')
 
-        self.confidence = 0
+        self.domain = domain
+        self.compare.reset()
+        self.compare.domain = domain
 
-        websiteInformation = self.lookOnWebsite(domain)
         companiesHouseInformation = self.lookOnCompaniesHouse(domain)
 
+        # does "a b c" match "abc.com"?
+        similarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'))
+
+        if similarity == 1:
+            self.compare.increaseConfidence(400, 400, f'The domain name exactly matches the name in companies house.', f'domain name exactly matches companies house')
+
+        # can stop early to speed things up
+        if self.outputIfDone(newItem, companiesHouseInformation):
+            return
+
         # does website title match the name in companies house?
-        similarity = self.compare.companyNamesMatch(get(companiesHouseInformation, 'companyName'), websiteInformation)
+        websiteInformation = self.lookOnWebsite(domain)
+
+        similarity = self.compare.companyNamesMatch(domain, get(companiesHouseInformation, 'companyName'), get(websiteInformation, 'companyName'))
 
         if similarity == 1:
             self.compare.increaseConfidence(400, 400, f'The website title exactly matches the name in companies house.', f'website name exactly matches companies house')
 
-        if companiesHouseInformation:
-            result = helpers.mergeDictionaries(companiesHouseInformation, result)
-            self.outputResult(result)
+        if self.outputIfDone(newItem, companiesHouseInformation):
             return
-        else:
-            self.outputResult(result)
-            return
-        
+
         googleResults = self.google.search(f'site:{domain} contact', 3, False)
         
         companies = self.getCompaniesHouseResults('Heaven Scent Incense')
@@ -63,6 +71,20 @@ class NameFinder:
         googleMapResults = self.googleMaps.search(googleMapSearchItem)
 
         print(googleMapResults)
+
+    def outputIfDone(self, newItem, companiesHouseInformation):
+        result = False
+        
+        if self.compare.confidence < self.options['minimumConfidence']:
+            return result
+
+        self.log.info(f'Done {self.domain}. Reached confidence of {self.options["minimumConfidence"]}.')
+
+        toOutput = helpers.mergeDictionaries(companiesHouseInformation, newItem)
+        
+        self.outputResult(toOutput)
+        
+        return True
 
     def lookOnWebsite(self, domain):
         result = {}
@@ -228,7 +250,18 @@ class NameFinder:
         self.googleMaps = GoogleMaps(self.options, self.credentials, self.database)
 
 class Compare:
-    def companyNamesMatch(self, name1, name2):
+    def companyNameMatchesDomain(self, domain, name):
+        name = self.getBasicCompanyName(name)
+
+        basicDomain = helpers.getBasicDomainName(domain)
+
+        # does "a b c" match "abc.com"?
+        if basicDomain == helpers.lettersAndNumbersOnly(name):
+            return 1
+
+        return 0
+    
+    def companyNamesMatch(self, domain, name1, name2):
         name1 = self.getBasicCompanyName(name1)
         name2 = self.getBasicCompanyName(name2)
 
@@ -303,6 +336,13 @@ class Compare:
         s = self.getFuzzyVersion(s)
 
         return s
+
+    def reset(self):
+        self.testsPassed = 0
+        self.totalTests = 0
+        self.confidence = 0
+        self.maximumPossibleConfidence = 0
+        self.domain = ''
 
     def __init__(self, options):
         self.options = options

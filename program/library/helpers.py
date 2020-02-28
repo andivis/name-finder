@@ -647,6 +647,15 @@ def getDomainName(url):
 
     return result
 
+def getBasicDomainName(url):
+    result = getDomainName(url)
+
+    if not result:
+        result = url
+
+    result = findBetween(result, '', '.')
+
+    return result
 
 def fileNameOnly(fileName, includeExtension=True):
     result = os.path.basename(fileName)

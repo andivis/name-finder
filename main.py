@@ -41,7 +41,8 @@ class Main:
             'defaultSearchUrl': '',
             'userAvoidPatterns': '',
             'userAvoidDomains': '',
-            'ignoreInCompanyName': ''
+            'ignoreInCompanyName': '',
+            'minimumConfidence': 400
         }
 
         optionsFileName = helpers.getParameter('--optionsFile', False, 'user-data/options.ini')
