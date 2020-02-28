@@ -50,7 +50,8 @@ class Main:
             'userAvoidPatterns': '',
             'userAvoidDomains': '',
             'ignoreInCompanyName': '',
-            'minimumConfidence': 400
+            'minimumConfidence': 400,
+            'secondsBetweenLines': 0
         }
 
         optionsFileName = helpers.getParameter('--optionsFile', False, 'user-data/options.ini')

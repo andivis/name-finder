@@ -26,7 +26,6 @@ class NameFinder:
 
         newItem = {
             'domain': domain,
-            'domain status': '',
             'companyName': 'unknown'
         }
 
@@ -40,16 +39,13 @@ class NameFinder:
         if self.google.captcha:
             return
 
-        if not companiesHouseInformation:
-            self.outputUnknown(newItem, companiesHouseInformation)
-            return
+        if companiesHouseInformation:
+            # does "a b c" match "abc.com"?
+            similarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'), 'by words')
+            self.compare.increaseConfidence(similarity * 400, 400, f'The domain name matches the words in companies house name.', f'domain name matches words in companies house name')
 
-        # does "a b c" match "abc.com"?
-        similarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'), 'by words')
-        self.compare.increaseConfidence(similarity * 400, 400, f'The domain name matches the words in companies house name.', f'domain name matches words in companies house name')
-
-        noSpacesSimilarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'), 'by no spaces')
-        self.compare.increaseConfidence(noSpacesSimilarity * 400, 400, f'The domain name matches the name in companies house.', f'domain name matches companies house')
+            noSpacesSimilarity = self.compare.companyNameMatchesDomain(domain, get(companiesHouseInformation, 'companyName'), 'by no spaces')
+            self.compare.increaseConfidence(noSpacesSimilarity * 400, 400, f'The domain name matches the name in companies house.', f'domain name matches companies house')
 
         # can stop early to speed things up
         if self.outputIfDone(newItem, companiesHouseInformation):
@@ -88,12 +84,18 @@ class NameFinder:
 
         self.outputUnknown(newItem, companiesHouseInformation)
 
+        helpers.wait(self.options['secondsBetweenLines'], self.log.name)
+
     def outputUnknown(self, newItem, companiesHouseInformation):
         toOutput = helpers.mergeDictionaries(companiesHouseInformation, newItem)
         
         toOutput['domainStatus'] = self.domainStatus
         
-        toOutput['confidence'] = self.compare.confidence / self.compare.maximumPossibleConfidence
+        if self.compare.maximumPossibleConfidence:
+            toOutput['confidence'] = self.compare.confidence / self.compare.maximumPossibleConfidence
+        else:
+            toOutput['confidence'] = 0
+
         toOutput['confidence'] = int(round(toOutput['confidence'] * 100))
         
         self.outputResult(toOutput)
@@ -359,7 +361,7 @@ class Compare:
 
         return 0
     
-    def companyNamesMatch(self, name1, name2):
+    def companyNamesMatch(self, name1, name2, mode):
         name1 = self.getBasicCompanyName(name1)
         name2 = self.getBasicCompanyName(name2)
 
@@ -368,8 +370,12 @@ class Compare:
 
         if name1 == name2:
             return 1
-        else:
+        elif mode == 'by words':
+            # does "a b c" match "a b"?
             return self.percentageOfMaximumRun(name1, name2)
+        elif mode == 'by no spaces':
+            # does "b c d" match "a bc"?
+            return self.percentageSameWithoutSpaces(name1, name2)
 
         return 0
 
@@ -510,7 +516,7 @@ class Compare:
         string2 = string2.lower()
 
         # try longest run first, then try smaller ones
-        for i in range(len(string2), -1, -1):
+        for i in range(len(string1), -1, -1):
             run = ''.join(string1[0:i])
 
             if run in string2:

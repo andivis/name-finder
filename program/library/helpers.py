@@ -586,9 +586,12 @@ def getDateStringSecondsAgo(secondsAgo, useGmTime):
 
 
 def wait(seconds, loggerName=None):
+    if seconds == 0:
+        return
+
     import datetime
     import time
-    
+   
     seconds = int(seconds)
 
     if '--debug' in sys.argv:

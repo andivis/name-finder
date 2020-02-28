@@ -35,12 +35,21 @@
 2. Open a terminal/command prompt window. Depending on your system you may need run `pip` instead of `pip3`.
 
 ```
-git clone (repository url)
-cd (repository name)
+git clone https://github.com/andivis/name-finder
+cd name-finder
 pip3 install -r requirements.txt
 ```
 
 ## Instructions
 
 1. Make sure `user-data/input/input.csv` contains the list of url's.
-2. Run `python3 main.py`. Depending on your system you may need run `python main.py` instead
+2. Optionally, put your proxy list into `user-data/proxies.csv`. The header must contain `url,port,username,password`. The other lines follow that format.
+3. Run `python3 main.py`. Depending on your system you may need run `python main.py` instead.
+4. The output will be in `user-data/output/output.csv`.
+5. If any items fail due to a captcha or other network error, the script will loop until all items are complete.
+
+## Options
+
+`user-data/options.ini` accepts the following options:
+
+- `secondsBetweenLines`: Wait this many seconds after each line. Default: `0`
