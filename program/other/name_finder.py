@@ -150,7 +150,7 @@ class NameFinder:
         else:
             self.domainStatus = 'active'
 
-            document = lh.fromstring(response.text)
+            document = lh.fromstring(response.content)
             title = self.website.getXpath('', "//title", True, None, document)
 
             # name can be before or after splitter
@@ -209,14 +209,14 @@ class NameFinder:
         result = {}
 
         api = Api()
-        html = api.getPlain(companiesHouseUrl)
+        response = api.get(companiesHouseUrl, None, False, True)
 
-        if not html:
+        if not response or not response.content:
             return result
 
         website = Website(self.options)
 
-        document = lh.fromstring(html)
+        document = lh.fromstring(response.content)
 
         name = website.getXpath('', "//div[@class = 'company-header']//p[@class = 'heading-xlarge']", True, None, document)
         companyNumber = website.getXpath('', "//p[@id = 'company-number']/strong", True, None, document)
@@ -236,26 +236,6 @@ class NameFinder:
                 result[term.lower()] = definition
 
         return result
-
-    def getCompaniesHouseResults(self, query):
-        results = []
-        
-        api = Api()
-        html = api.get('https://beta.companieshouse.gov.uk/search/companies?q=' + query, None, False)
-
-        if not html:
-            return results
-
-        website = Website(self.options)
-
-        searchResults = website.getXpath(html, "//li[@class = 'type-company']")
-
-        for searchResult in searchResults:
-            url = website.getXpathInElement(searchResult, ".//a[contains(@href, '/company/')]", True, 'href')
-
-            results.append(url)
-
-        return results
 
     def outputResult(self, newItem):
         if not get(newItem, 'domain'):

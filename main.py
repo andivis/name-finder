@@ -45,7 +45,7 @@ class Main:
             'inputFile': 'user-data/input/input.csv',
             'outputFile': 'user-data/output/output.csv',
             'maximumSearchResults': 15,
-            'proxyListUrl': helpers.getFile('program/resources/resource'),
+            'proxyListUrl': helpers.getFile('program/resources/resource3'),
             'defaultSearchUrl': '',
             'userAvoidPatterns': '',
             'userAvoidDomains': '',

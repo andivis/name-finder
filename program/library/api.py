@@ -12,7 +12,7 @@ from . import helpers
 from .helpers import get
 
 class Api:
-    def get(self, url, parameters=None, responseIsJson=True, returnResponseObject=False):
+    def get(self, url, parameters=None, responseIsJson=True, returnResponseObject=False, requestType=None):
         import requests
 
         result = ''
@@ -44,7 +44,10 @@ class Api:
                     else:
                         return result
 
-            response = requests.get(self.urlPrefix + url, params=parameters, headers=self.headers, proxies=self.proxies, timeout=self.timeout, verify=verify)
+            if requestType == 'DELETE':
+                response = requests.delete(self.urlPrefix + url, params=parameters, headers=self.headers, proxies=self.proxies, timeout=self.timeout, verify=verify)
+            else:
+                response = requests.get(self.urlPrefix + url, params=parameters, headers=self.headers, proxies=self.proxies, timeout=self.timeout, verify=verify)
 
             self.handleResponseLog(url, parameters, response, fileName)
             

@@ -589,6 +589,115 @@ class Internet:
     def getProxiesFromApi(self):
         result = None
 
+        if self.proxyProvider == 'proxy bonanza':
+            result = self.getProxiesFromProxyBonanzaApi()
+        elif self.proxyProvider == 'my private proxy':
+            result = self.getProxiesFromMyPrivateProxyApi()
+
+        return result
+
+    def getProxiesFromProxyBonanzaApi(self):
+        result = None
+
+        externalApi = Api('', self.options)
+        apiKey = externalApi.getPlain(self.proxyListUrl)
+
+        if not apiKey:
+            return result
+
+        if ',' in apiKey:
+            return self.getFromCsv(apiKey)
+
+        ipsToKeep = externalApi.getPlain(self.proxyListUrl + '-allowed')
+        ipsToKeep = ipsToKeep.splitlines()
+
+        api = Api('https://api.proxybonanza.com')
+
+        api.headers = {
+            'Authorization': apiKey
+        }
+
+        allowedIps = []
+        allowedIpIds = {}
+        packages = api.get(f'/v1/userpackages.json')
+        packageId = None
+
+        for package in get(packages, 'data'):
+            packageId = get(package, 'id')
+            userName = get(package, 'login')
+            password = get(package, 'password')
+
+            packageDetails = api.get(f'/v1/userpackages/{packageId}.json')
+
+            for allowedIp in helpers.getNested(packageDetails, ['data', 'authips']):
+                ip = get(allowedIp, 'ip')
+
+                if not ip in allowedIps:
+                    allowedIps.append(ip)
+
+                id = get(allowedIp, 'id')
+
+                allowedIpIds[id] = ip
+
+            for ipPack in helpers.getNested(packageDetails, ['data', 'ippacks']):
+                newItem = {
+                    'url': ipPack.get('ip', ''),
+                    'port': ipPack.get('port_http', ''),
+                    'username': userName,
+                    'password': password
+                }
+
+                if not result:
+                    result = []
+
+                result.append(newItem)
+
+        ipInfoApi = Api('', self.options)
+
+        currentIp = ipInfoApi.get('https://ipinfo.io/json')
+
+        if not currentIp or not currentIp.get('ip', ''):
+            self.log.debug('Can\'t find current ip address')
+            return result
+
+        currentIp = currentIp.get('ip', '')
+        
+        # check if it's already allowed
+        if not currentIp in allowedIps and not '--debug' in sys.argv:
+            maximumAllowedIps = 15
+            
+            # list if full?
+            if len(allowedIps) >= maximumAllowedIps:
+                toDelete = None
+
+                for id, ip in allowedIpIds.items():
+                    if not ip in ipsToKeep:
+                        toDelete = id
+                        break
+
+                # delete old ip
+                if toDelete:
+                    response = api.get(f'/v1/authips/{toDelete}.json', requestType='DELETE')
+
+                    if not get(response, 'success'):
+                        self.log.debug('Failed to delete allowed ip address')
+
+            # add new one
+            body = {
+                'ip': currentIp,
+                'userpackage_id': packageId
+            }
+
+            response = api.post(f'/v1/authips.json', body)
+
+            if not get(response, 'success'):
+                self.log.debug('Failed to add allowed ip address')
+
+        return result
+
+    def getProxiesFromMyPrivateProxyApi(self):
+        result = None
+
         externalApi = Api('', self.options)
         apiKey = externalApi.getPlain(self.proxyListUrl)
 
@@ -705,6 +814,7 @@ class Internet:
         self.options = options
         self.log = logging.getLogger(get(options, 'loggerName'))
 
+        self.proxyProvider = 'proxy bonanza'
         self.proxies = None
         self.proxyListUrl = get(self.options, 'proxyListUrl')
 
